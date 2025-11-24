@@ -795,7 +795,7 @@
             // 构建完整的配置对象
             const configToSave = {
                 server: {
-                    port: 8080 // 固定端口，不允许修改（安全考虑）
+                    port: config.server?.port || 8080 // 保持原有端口配置
                 },
                 proxy: {
                     rules: (config.proxy?.rules || []).map(rule => {

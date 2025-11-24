@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/bytedance/sonic"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/without-php/BFF-proxy/internal/config"
@@ -29,6 +30,9 @@ func main() {
 	go config.WatchConfig("config.yaml", func() {
 		hlog.Info("配置已重新加载")
 	})
+
+	s, _ := sonic.MarshalString(cfg)
+	hlog.Info("cfg: %s", s)
 
 	// 创建 Hertz 服务器
 	h := server.Default(

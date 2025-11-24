@@ -80,8 +80,10 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// 设置默认值
-	// 服务器端口固定，不允许修改（安全考虑）
-	cfg.Server.Port = 8080
+	// 如果端口未配置，使用默认值 8080
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8080
+	}
 	if cfg.Log.Level == "" {
 		cfg.Log.Level = "info"
 	}
@@ -121,8 +123,10 @@ func GetConfig() *Config {
 // SaveConfig 保存配置
 func SaveConfig(cfg *Config, path string) error {
 	// 设置默认值，确保配置完整
-	// 服务器端口固定，不允许修改（安全考虑）
-	cfg.Server.Port = 8080
+	// 如果端口未配置，使用默认值 8080
+	if cfg.Server.Port == 0 {
+		cfg.Server.Port = 8080
+	}
 	if cfg.Log.Level == "" {
 		cfg.Log.Level = "info"
 	}
