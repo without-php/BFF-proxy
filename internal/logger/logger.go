@@ -175,7 +175,7 @@ func GetLogs(limit int) ([]*RequestLog, error) {
 	lines := strings.Split(content, "\n")
 	logs := make([]*RequestLog, 0)
 
-	// 从后往前读取，最多读取 limit 条
+	// 从后往前读取，最多读取 limit 条（最新的在前，倒序）
 	count := 0
 	for i := len(lines) - 1; i >= 0 && count < limit; i-- {
 		line := strings.TrimSpace(lines[i])
@@ -192,11 +192,7 @@ func GetLogs(limit int) ([]*RequestLog, error) {
 		count++
 	}
 
-	// 反转顺序
-	for i, j := 0, len(logs)-1; i < j; i, j = i+1, j-1 {
-		logs[i], logs[j] = logs[j], logs[i]
-	}
-
+	// 不反转顺序，保持倒序（最新的在前）
 	return logs, nil
 }
 

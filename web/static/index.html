@@ -206,13 +206,18 @@
         }
 
         .json-view {
-            max-height: 200px;
+            max-height: 300px;
             overflow: auto;
             background: #f5f5f5;
             padding: 10px;
             border-radius: 4px;
             font-family: monospace;
             font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .json-view:hover {
+            background: #e8f4f8;
         }
 
         .message {
@@ -624,6 +629,11 @@
                     drawerBody.innerHTML = originalDrawerBodyHTML;
                 }
             }
+            // 确保 footer 显示
+            const drawerFooter = document.getElementById('drawer-footer');
+            if (drawerFooter) {
+                drawerFooter.style.display = 'flex';
+            }
         }
 
         // 打开抽屉
@@ -893,8 +903,67 @@
             container.innerHTML = html;
         }
 
+        // 生成 curl 命令
+        function generateCurlCommand(log) {
+            const method = log.method || 'GET';
+            const path = log.path || '/';
+            const query = log.query || '';
+            const headers = log.headers || {};
+            const body = log.body || '';
+            
+            // 构建 URL（使用变量，方便修改）
+            let url = '${PROXY_URL:-http://127.0.0.1:8080}' + path;
+            if (query) {
+                url += (query.startsWith('?') ? '' : '?') + query;
+            }
+            
+            // 构建 curl 命令
+            let curlCmd = `curl -X ${method} "${url}"`;
+            
+            // 添加请求头（排除一些自动生成的头部）
+            const excludeHeaders = ['host', 'content-length', 'connection', 'user-agent'];
+            for (const [key, value] of Object.entries(headers)) {
+                if (!excludeHeaders.includes(key.toLowerCase())) {
+                    // 转义双引号
+                    const escapedValue = String(value).replace(/"/g, '\\"');
+                    curlCmd += ` \\\n  -H "${key}: ${escapedValue}"`;
+                }
+            }
+            
+            // 添加请求体
+            if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+                // 尝试格式化 JSON
+                let formattedBody = body;
+                try {
+                    const parsed = JSON.parse(body);
+                    formattedBody = JSON.stringify(parsed, null, 2);
+                } catch (e) {
+                    // 不是 JSON，保持原样
+                }
+                
+                // 转义单引号
+                formattedBody = formattedBody.replace(/'/g, "'\\''");
+                curlCmd += ` \\\n  -d '${formattedBody}'`;
+            }
+            
+            return curlCmd;
+        }
+
         // 显示日志详情
         function showLogDetail(log) {
+            // 生成 curl 命令
+            const curlCmd = generateCurlCommand(log);
+            
+            // 格式化响应体
+            let formattedResponse = log.response_body || '无';
+            if (formattedResponse !== '无') {
+                try {
+                    formattedResponse = JSON.stringify(JSON.parse(formattedResponse), null, 2);
+                } catch (e) {
+                    // 不是 JSON，保持原样
+                }
+            }
+            
             // 创建详情抽屉
             const detailHtml = `
                 <div class="form-group">
@@ -902,24 +971,8 @@
                     <div>${new Date(log.start_time).toLocaleString('zh-CN')}</div>
                 </div>
                 <div class="form-group">
-                    <label><strong>结束时间:</strong></label>
-                    <div>${new Date(log.end_time).toLocaleString('zh-CN')}</div>
-                </div>
-                <div class="form-group">
                     <label><strong>耗时:</strong></label>
                     <div>${(log.duration / 1000000).toFixed(2)}ms</div>
-                </div>
-                <div class="form-group">
-                    <label><strong>方法:</strong></label>
-                    <div>${log.method}</div>
-                </div>
-                <div class="form-group">
-                    <label><strong>路径:</strong></label>
-                    <div>${log.path}</div>
-                </div>
-                <div class="form-group">
-                    <label><strong>查询参数:</strong></label>
-                    <div class="json-view">${log.query || '无'}</div>
                 </div>
                 <div class="form-group">
                     <label><strong>状态码:</strong></label>
@@ -927,23 +980,22 @@
                 </div>
                 <div class="form-group">
                     <label><strong>目标服务器:</strong></label>
-                    <div>${log.target}</div>
+                    <div>${log.target || '无'}</div>
                 </div>
                 <div class="form-group">
                     <label><strong>规则名称:</strong></label>
                     <div>${log.rule_name || '无'}</div>
                 </div>
                 <div class="form-group">
-                    <label><strong>请求头:</strong></label>
-                    <div class="json-view">${JSON.stringify(log.headers, null, 2)}</div>
-                </div>
-                <div class="form-group">
-                    <label><strong>请求体:</strong></label>
-                    <div class="json-view">${log.body || '无'}</div>
+                    <label><strong>Curl 命令（点击复制，可直接重跑）:</strong></label>
+                    <div class="json-view" style="white-space: pre-wrap; word-break: break-all; cursor: pointer; user-select: all;" onclick="copyToClipboard(this)" title="点击复制到剪贴板">
+${curlCmd}
+                    </div>
+                    <small style="color: #999; display: block; margin-top: 5px;">提示: 使用环境变量 PROXY_URL 可以修改代理地址，例如: PROXY_URL=http://192.168.1.100:8080 curl ...</small>
                 </div>
                 <div class="form-group">
                     <label><strong>响应体:</strong></label>
-                    <div class="json-view">${log.response_body || '无'}</div>
+                    <div class="json-view">${formattedResponse}</div>
                 </div>
                 ${log.error ? `<div class="form-group"><label><strong>错误:</strong></label><div class="message error">${log.error}</div></div>` : ''}
             `;
@@ -953,20 +1005,44 @@
             document.getElementById('rule-drawer').classList.add('open');
             
             const drawerBody = document.getElementById('rule-drawer').querySelector('.drawer-body');
-            drawerBody.innerHTML = detailHtml;
+            const drawerFooter = document.getElementById('drawer-footer');
             
-            // 隐藏保存按钮，只显示关闭按钮
-            const drawerFooter = document.getElementById('rule-drawer').querySelector('.drawer-footer');
-            drawerFooter.style.display = 'none';
+            // 保存原始 footer 显示状态
+            const originalFooterDisplay = drawerFooter ? drawerFooter.style.display : 'flex';
+            
+            // 隐藏 footer
+            if (drawerFooter) {
+                drawerFooter.style.display = 'none';
+            }
+            
+            drawerBody.innerHTML = detailHtml;
             
             // 修改关闭按钮行为
             const closeBtn = document.getElementById('rule-drawer').querySelector('.drawer-close');
             const originalClose = closeBtn.onclick;
             closeBtn.onclick = function() {
                 closeDrawer();
-                drawerFooter.style.display = 'flex';
+                // 恢复原始抽屉内容和 footer
+                restoreDrawerBody();
                 closeBtn.onclick = originalClose;
             };
+        }
+        
+        // 复制到剪贴板
+        function copyToClipboard(element) {
+            const text = element.textContent.trim();
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = element.textContent;
+                const originalBg = element.style.background;
+                element.textContent = '✓ 已复制到剪贴板！\n\n' + text;
+                element.style.background = '#e6f7ff';
+                setTimeout(() => {
+                    element.textContent = originalText;
+                    element.style.background = originalBg;
+                }, 2000);
+            }).catch(err => {
+                alert('复制失败: ' + err);
+            });
         }
 
         // 显示消息
