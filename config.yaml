@@ -1,0 +1,13 @@
+server:
+    port: 8080
+proxy:
+    rules: []
+log:
+    level: debug
+    file: logs/bff-proxy.log
+    max_size: 100
+    max_backups: 10
+    max_age: 30
+admin_auth:
+    cookie_key: bff_admin_token
+    cookie_value: change_me_in_production
