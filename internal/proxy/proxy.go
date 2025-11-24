@@ -46,25 +46,40 @@ func (p *ProxyMiddleware) Handle(ctx context.Context, c *app.RequestContext) {
 
 	// 查找匹配的规则
 	rule := p.findMatchingRule(c, cfg)
+	
+	// 准备请求日志（无论是否找到规则都要记录）
+	queryString := string(c.QueryArgs().QueryString())
+	reqLog := &logger.RequestLog{
+		StartTime: startTime,
+		Method:    string(c.Method()),
+		Path:      path,
+		Query:     queryString,
+		Headers:   p.extractHeaders(c),
+		Body:      string(bodyBytes),
+	}
+
 	if rule == nil {
+		// 没有找到匹配的规则，也要记录日志
+		reqLog.EndTime = time.Now()
+		reqLog.Duration = reqLog.EndTime.Sub(reqLog.StartTime)
+		reqLog.StatusCode = http.StatusBadGateway
+		reqLog.ResponseBody = `{"error":"没有找到匹配的代理规则"}`
+		reqLog.Target = ""
+		reqLog.RuleName = ""
+		reqLog.Error = "没有找到匹配的代理规则"
+		
+		// 记录日志
+		logger.LogRequest(reqLog)
+		
 		c.JSON(http.StatusBadGateway, map[string]string{
 			"error": "没有找到匹配的代理规则",
 		})
 		return
 	}
 
-	// 记录请求日志
-	queryString := string(c.QueryArgs().QueryString())
-	reqLog := &logger.RequestLog{
-		StartTime:   startTime,
-		Method:      string(c.Method()),
-		Path:        path,
-		Query:       queryString,
-		Headers:     p.extractHeaders(c),
-		Body:        string(bodyBytes),
-		Target:      rule.Target,
-		RuleName:    rule.Name,
-	}
+	// 设置规则信息
+	reqLog.Target = rule.Target
+	reqLog.RuleName = rule.Name
 
 	// 执行代理转发
 	statusCode, responseBody, err := p.proxyRequest(ctx, c, rule)
