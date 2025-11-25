@@ -46,7 +46,7 @@ func (p *ProxyMiddleware) Handle(ctx context.Context, c *app.RequestContext) {
 
 	// 查找匹配的规则
 	rule := p.findMatchingRule(c, cfg)
-	
+
 	// 准备请求日志（无论是否找到规则都要记录）
 	queryString := string(c.QueryArgs().QueryString())
 	reqLog := &logger.RequestLog{
@@ -62,18 +62,17 @@ func (p *ProxyMiddleware) Handle(ctx context.Context, c *app.RequestContext) {
 		// 没有找到匹配的规则，也要记录日志
 		reqLog.EndTime = time.Now()
 		reqLog.Duration = reqLog.EndTime.Sub(reqLog.StartTime)
-		reqLog.StatusCode = http.StatusBadGateway
-		reqLog.ResponseBody = `{"error":"没有找到匹配的代理规则"}`
+		reqLog.StatusCode = http.StatusNotFound
+		reqLog.ResponseBody = "404 page not found"
 		reqLog.Target = ""
 		reqLog.RuleName = ""
 		reqLog.Error = "没有找到匹配的代理规则"
-		
+
 		// 记录日志
 		logger.LogRequest(reqLog)
-		
-		c.JSON(http.StatusBadGateway, map[string]string{
-			"error": "没有找到匹配的代理规则",
-		})
+
+		// 返回404，不暴露代理信息
+		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
 
@@ -312,4 +311,3 @@ func (p *ProxyMiddleware) extractHeaders(c *app.RequestContext) map[string]strin
 	})
 	return headers
 }
-
